@@ -16,8 +16,10 @@ class Connection:
 
     def listen_single_segment(self) -> Segment:
         # Listen single UDP datagram within timeout and convert into segment
-        x = self.udp_server_socket.recvfrom(MAX_PAYLOAD_SIZE)
-        pass
+        return_segment = Segment()
+        res = self.udp_server_socket.recvfrom(MAX_PAYLOAD_SIZE)
+        return_segment.set_from_bytes(res[0])
+        return return_segment
 
     def close_socket(self):
         # Release UDP socket
