@@ -1,6 +1,4 @@
-import lib.connection
-from lib.segment import Segment
-import lib.segment as segment
+from lib.connection import Segment, Connection
 
 class Server:
     def __init__(self):
@@ -20,8 +18,8 @@ class Server:
         pass
 
     def three_way_handshake(self, client_addr: ("ip", "port")) -> bool:
-       # Three way handshake, server-side, 1 client
-       pass
+        # Three way handshake, server-side, 1 client
+        pass
 
 
 if __name__ == '__main__':

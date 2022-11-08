@@ -1,6 +1,4 @@
-import lib.connection
-from lib.segment import Segment
-import lib.segment as segment
+from lib.connection import Segment, Connection
 
 class Client:
     def __init__(self):
