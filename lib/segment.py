@@ -6,6 +6,9 @@ ACK_FLAG = 0b00001000
 FIN_FLAG = 0b10000000
 MAX_PAYLOAD_SIZE = 32756
 
+# DECLARE CONSTANTS - server.py & client.py
+SEQ_BYTES = 4
+
 # -- Utility Function --
 def add_one_complement(m : int, n : int, size : int) -> int:
     # m and n is size-bit integer

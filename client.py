@@ -57,7 +57,7 @@ class Client:
         # Three Way Handshake, client-side
         
         #todo send the first part
-        # self.connection.send_data(Segment())
+        # self.connection.send_syn()
         while True:
             resp: Segment = self.connection.listen_single_segment()
 
