@@ -1,5 +1,15 @@
 from lib.connection import Segment, Connection
+import lib.connection as connection
 import sys
+
+'''
+TODO:
+
+class Connection:
+add one more parameter which stands for
+"isServer"
+if it is true, then the socket will be made for a server
+'''
 
 class Server:
     def __init__(self):
