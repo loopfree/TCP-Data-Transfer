@@ -29,6 +29,11 @@ class Server:
 
     def three_way_handshake(self, client_addr: ("ip", "port")) -> bool:
         # Three way handshake, server-side, 1 client
+        syn_sgmt = Segment()
+        syn_sgmt.set_seq((100).to_bytes(SEQ_BYTES, 'big'))
+
+        syn_sgmt.set_syn_flag(True)
+        self.connection.send_data(syn_sgmt, client_addr)
         pass
 
 
