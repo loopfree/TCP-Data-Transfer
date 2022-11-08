@@ -7,12 +7,10 @@ class Connection:
         # socket.AF_INET adalah familynya dan socket.SOCK_DGRAM adalah typenya
         self.udp_server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.udp_server_socket.bind((ip, port))
-        print(self.udp_server_socket)
         pass
 
     def send_data(self, msg : Segment, dest : ("ip", "port")):
         # Send single segment into destination
-        print("Sending data to", dest)
         self.udp_server_socket.sendto(msg.get_bytes(), dest)
         pass
 
