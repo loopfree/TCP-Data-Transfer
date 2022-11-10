@@ -1,6 +1,6 @@
 import sys, os
-from lib.connection import Segment, Connection
-from lib.segment import SYN_FLAG, ACK_FLAG, FIN_FLAG
+from lib.connection import Connection
+from lib.segment import Segment, SegmentFlag
 
 def int_to_bytes(num):
     return num.to_bytes(1, 'big')
@@ -65,15 +65,15 @@ class Server:
 
     def file_transfer(self, client_addr : tuple[str, int]):
         # File transfer, server-side, Send file to 1 client
-        MAXIMUM_PAYLOAD = 32756
+
         # Read bytes dari path_file_input
         with open(self.path_file_input, "rb") as in_file:
             while True:
-                chunk = in_file.read(MAXIMUM_PAYLOAD)
+                chunk = in_file.read(Segment.MAX_PAYLOAD_SIZE)
 
                 if chunk == b"":
                     fin_segment = Segment()
-                    fin_segment.set_flag([FIN_FLAG])
+                    fin_segment.set_flag([SegmentFlag.FIN_FLAG])
                     self.server_connection.send_data(fin_segment, client_addr)
                     break
                 
@@ -95,7 +95,7 @@ class Server:
             "seq_nb": self.seq_number,
             "ack_nb": 0
         })
-        syn_segment.set_flag([SYN_FLAG])
+        syn_segment.set_flag([SegmentFlag.SYN_FLAG])
         self.server_connection.send_data(syn_segment, client_addr)
         self.seq_number += 1
 
@@ -103,7 +103,7 @@ class Server:
         print("[!] [Handshake] Waiting for response...")
         reply_segment = self.server_connection.listen_single_segment()
 
-        while reply_segment.get_flag().get_flag_bytes() != int_to_bytes(SYN_FLAG | ACK_FLAG):
+        while not (reply_segment.get_flag().is_syn_flag() and reply_segment.get_flag().is_ack_flag()):
             reply_segment = self.server_connection.listen_single_segment()
 
         print("[!] [Handshake] SYN-ACK reply received")
@@ -117,7 +117,7 @@ class Server:
             "seq_nb": self.seq_number,
             "ack_nb": reply_header["seq_nb"] + 1
         })
-        ack_segment.set_flag([ACK_FLAG])
+        ack_segment.set_flag([SegmentFlag.ACK_FLAG])
         self.server_connection.send_data(ack_segment, client_addr)
         self.seq_number += 1
         return

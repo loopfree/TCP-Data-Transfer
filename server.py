@@ -1,6 +1,7 @@
 from mp import Manager, Process
 
-from lib.connection import Segment, Connection, SEQ_BYTES
+from lib.connection import Connection
+from lib.segment import Segment, SegmentFlag
 import sys
 
 '''
@@ -72,9 +73,8 @@ class Server:
         # SYN
         # Send SYN
         syn_sgmt = Segment()
-        syn_sgmt.set_seq((100).to_bytes(SEQ_BYTES, 'big'))
-
-        syn_sgmt.set_syn_flag(True)
+        syn_sgmt.set_header({"seq_nb": 100})
+        syn_sgmt.set_flag([SegmentFlag.SYN_FLAG])
         self.connection.send_data(syn_sgmt, client_addr)
         print(f"[({client_addr[0]}:{client_addr[1]}) THREE WAY HANDSHAKE] SYN Segment Sent")
 
@@ -96,34 +96,29 @@ class Server:
         if sgmt_wait_ack_syn.is_alive():
             sgmt_wait_ack_syn.kill()
         
-            return -1
+            return False
 
-        sgmt = return_map["segment"]
+        sgmt : Segment = return_map["segment"]
 
         # ACK
         # Receive ACK
-        if sgmt.get_syn_flag() and sgmt.get_ack_flag():
-            seq = int.from_bytes(sgmt.get_seq(), 'big')
-            ack = int.from_bytes(sgmt.get_ack(), 'big')
-            print(f"[({client_addr[0]}:{client_addr[1]}) THREE WAY HANDSHAKE] Segment ACK Received")
+        if sgmt.get_flag().is_syn_flag() and sgmt.get_flag().is_ack_flag():
+            print(f"[({client_addr[0]}:{client_addr[1]}) THREE WAY HANDSHAKE] Segment SYN-ACK Received")
 
             ack_sgmt = Segment()
-            ack_sgmt.set_seq(ack.to_bytes(SEQ_BYTES, 'big'))
-
-            ack_sgmt.set_ack((seq+1).to_bytes(SEQ_BYTES), 'big')
-
-            ack_sgmt.set_ack_flag(True)
+            ack_sgmt.set_header({'ack_nb': sgmt.get_header()['seq_nb'] + 1})
+            ack_sgmt.set_flag([SegmentFlag.ACK_FLAG])
 
             self.connection.send_data(ack_sgmt, client_addr)
             print(f"[({client_addr[0]}:{client_addr[1]}) THREE WAY HANDSHAKE] Send Segment ACK")
             print(f"[({client_addr[0]}:{client_addr[1]}) THREE WAY HANDSHAKE] Succeed, Starting The Data Transfer..")
             
-            return ack
+            return True
         
-            print(f"[({client_addr[0]}:{client_addr[1]}) THREE WAY HANDSHAKE] Unidentified Segment Detected")
-            print(f"[({client_addr[0]}:{client_addr[1]}) THREE WAY HANDSHAKE] Failed")
-        return -1
-        pass
+        print(f"[({client_addr[0]}:{client_addr[1]}) THREE WAY HANDSHAKE] Unidentified Segment Detected")
+        print(f"[({client_addr[0]}:{client_addr[1]}) THREE WAY HANDSHAKE] Failed")
+        
+        return False
 
 
 if __name__ == '__main__':

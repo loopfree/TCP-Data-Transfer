@@ -1,13 +1,5 @@
 import struct
 
-# Constants 
-SYN_FLAG = 0b01000000
-ACK_FLAG = 0b00001000
-FIN_FLAG = 0b10000000
-MAX_PAYLOAD_SIZE = 32756
-
-# DECLARE CONSTANTS - server.py & client.py
-SEQ_BYTES = 4
 
 # -- Utility Function --
 def add_one_complement(m : int, n : int, size : int) -> int:
@@ -22,6 +14,11 @@ def add_one_complement(m : int, n : int, size : int) -> int:
 
 
 class SegmentFlag:
+    # Constants 
+    SYN_FLAG = 0b01000000
+    ACK_FLAG = 0b00001000
+    FIN_FLAG = 0b10000000
+
     def __init__(self, flag : bytes):
         # Init flag variable from flag byte
         self.flag = flag
@@ -29,9 +26,24 @@ class SegmentFlag:
     def get_flag_bytes(self) -> bytes:
         # Convert this object to flag in byte form
         return self.flag
+    
+    def is_syn_flag(self) -> bool:
+        return True if int.from_bytes(self.flag, 'big') & SegmentFlag.SYN_FLAG else False
+    
+    def is_ack_flag(self) -> bool:
+        return True if int.from_bytes(self.flag, 'big') & SegmentFlag.ACK_FLAG else False
+    
+    def is_fin_flag(self) -> bool:
+        return True if int.from_bytes(self.flag, 'big') & SegmentFlag.FIN_FLAG else False
 
 
 class Segment:
+    # Constants
+    MAX_PAYLOAD_SIZE = 32756
+    MAX_SEGMENT_SIZE = 32768
+    INIT_SEQ_NB = 1
+    INIT_ACK_NB = 1
+
     # -- Internal Function --
     def __init__(self):
         # Initalize segment
@@ -62,8 +74,8 @@ class Segment:
 
     # -- Setter --
     def set_header(self, header : dict):
-        self.seq_nb = header['seq_nb']
-        self.ack_nb = header['ack_nb']
+        self.seq_nb = header["seq_nb"] if "seq_nb" in header else 0
+        self.ack_nb = header["ack_nb"] if "ack_nb" in header else 0
         self.checksum = 0
         self.checksum = self.__calculate_checksum()
 
@@ -74,7 +86,7 @@ class Segment:
         self.checksum = self.__calculate_checksum()
 
     def set_flag(self, flag_list : list):
-        self.flag = SegmentFlag(sum(flag_list).to_bytes(1, 'big'))
+        self.flag = SegmentFlag(sum(flag_list).to_bytes(1, "big"))
         self.checksum = 0
         self.checksum = self.__calculate_checksum()
 
@@ -84,8 +96,8 @@ class Segment:
         return self.flag
 
     def get_header(self) -> dict:
-        return {'seq_nb': self.seq_nb,
-                'ack_nb': self.ack_nb}
+        return {"seq_nb": self.seq_nb,
+                "ack_nb": self.ack_nb}
 
     def get_payload(self) -> bytes:
         return self.payload
@@ -95,12 +107,12 @@ class Segment:
     def set_from_bytes(self, src : bytes):
         # From pure bytes, unpack() and set into python variable
         self.payload_size = len(src) - 12
-        self.seq_nb, self.ack_nb, flag_byte, self.checksum, self.payload = struct.unpack(f'!IIsxH{self.payload_size}s', src)
+        self.seq_nb, self.ack_nb, flag_byte, self.checksum, self.payload = struct.unpack(f"!IIsxH{self.payload_size}s", src)
         self.flag = SegmentFlag(flag_byte)
 
     def get_bytes(self) -> bytes:
         # Convert this object to pure bytes
-        return struct.pack(f'!IIsxH{self.payload_size}s', self.seq_nb, self.ack_nb, self.flag.get_flag_bytes(),
+        return struct.pack(f"!IIsxH{self.payload_size}s", self.seq_nb, self.ack_nb, self.flag.get_flag_bytes(),
                                                           self.checksum, self.payload)
 
 

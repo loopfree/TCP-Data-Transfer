@@ -1,6 +1,6 @@
 import sys
-from lib.connection import Segment, Connection
-from lib.segment import SYN_FLAG, ACK_FLAG, FIN_FLAG
+from lib.connection import Connection
+from lib.segment import Segment, SegmentFlag
 
 def int_to_bytes(num):
     return num.to_bytes(1, 'big')
@@ -14,7 +14,7 @@ class Client:
 
         self.client_connection = Connection("localhost", self.client_port)
 
-        self.seq_number = 0
+        self.seq_number = Segment.INIT_SEQ_NB
 
         # Output required message
         print(f"[!] Client started at localhost:{self.client_port}")
@@ -31,7 +31,7 @@ class Client:
         print("[!] [Handshake] Waiting for SYN request...")
         req_segment = self.client_connection.listen_single_segment()
 
-        while req_segment.get_flag().get_flag_bytes() != int_to_bytes(SYN_FLAG):
+        while not req_segment.get_flag().is_syn_flag():
             req_segment = self.client_connection.listen_single_segment()
 
         req_header = req_segment.get_header()
@@ -44,7 +44,7 @@ class Client:
             "seq_nb": self.seq_number,
             "ack_nb": req_header["seq_nb"] + 1
         })
-        reply_segment.set_flag([SYN_FLAG, ACK_FLAG])
+        reply_segment.set_flag([SegmentFlag.SYN_FLAG, SegmentFlag.ACK_FLAG])
         print("[!] [Handshake] Waiting for response...")
         self.client_connection.send_data(reply_segment, ("localhost", self.broadcast_port))
         self.seq_number += 1
@@ -52,7 +52,7 @@ class Client:
         # Tunggu ACK
         reply_segment = self.client_connection.listen_single_segment()
 
-        while reply_segment.get_flag().get_flag_bytes() != int_to_bytes(ACK_FLAG):
+        while not reply_segment.get_flag().is_ack_flag():
             reply_segment = self.client_connection.listen_single_segment()
 
         print("[!] [Handshake] ACK reply received")
@@ -64,7 +64,7 @@ class Client:
 
         with open(self.path_output, "wb") as out_file:
             while True:
-                if (file_segment.get_flag().get_flag_bytes() == int_to_bytes(FIN_FLAG)):
+                if file_segment.get_flag().is_fin_flag():
                     # Penulisan selesai.
                     break
                 
