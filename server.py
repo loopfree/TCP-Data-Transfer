@@ -3,6 +3,7 @@ from mp import Manager, Process
 from lib.connection import Connection
 from lib.segment import Segment, SegmentFlag
 import sys
+import time
 
 '''
 TODO:
@@ -18,14 +19,13 @@ class Server:
         # Init server
         self.broadcast_port = int(sys.argv[1])
         self.path_file_input = sys.argv[2]
-        
+        self.clients = []
         self.server_connection = Connection("localhost", self.broadcast_port)
 
         # Output required message
         print(f"[!] Server started at localhost:{self.broadcast_port}")
         print(f"[!] Source file | {self.path_file_input} | {0} bytes")
         print(f"[!] Listening to broadcast address for clients.")
-        pass
 
     def listen_for_clients(self):
         # Waiting client for connect
@@ -56,16 +56,79 @@ class Server:
         for address, index in enumerate(client_address):
             print(f"{index+1} {address[0]}:{address[1]}")
 
-        return client_address, client_handled
-        pass
+        self.clients = client_address
+        return client_address, client_handled       # obsolete? no need handled list?
 
     def start_file_transfer(self):
-        # Handshake & file transfer for all client
-        pass
+        # Handshake & file transfer for all clients
+        print('[!] Commencing file transfer...')
+        for idx, client in enumerate(self.clients):
+            print(f'[!] [Handshake] Handshake to client {idx + 1}...')
+            if self.three_way_handshake(client):
+                self.file_transfer(client)
+                # Close connection
+                fin_segment = Segment()
+                fin_segment.set_flag([SegmentFlag.FIN_FLAG])
+                self.server_connection.send_data(fin_segment, client)
+
+        print('[!] Commencing file transfer...')
+
 
     def file_transfer(self, client_addr : tuple[str, int]):
         # File transfer, server-side, Send file to 1 client
-        pass
+        # TODO: retransmit on timeout
+
+        WINDOW_SIZE = 5
+        seq_base = Segment.INIT_SEQ_NB      # Minimum seq number to be sent (inclusive)
+        seq_max = WINDOW_SIZE + seq_base    # Maximum seq number to be sent (exclusive)
+        seq_nb = seq_base                   # Current seq number
+        ack_nb = 0                          # Last ack number
+        chunks = {}                         # Map seq number to data
+        chunk_nb = seq_base                 # Current chunk number
+        last_chunk_nb = -1                  # Last chunk number of the file
+        self.server_connection.set_listen_timeout(0.05)
+        
+        with open(self.path_file_input, "rb") as in_file:
+            while True:
+                # Receive ACK
+                try:
+                    recv_segment = self.server_connection.listen_single_segment()
+                    ack_nb = recv_segment.get_header()["ack_nb"]
+
+                    if ack_nb == last_chunk_nb:     # Finished transfering file
+                        break
+
+                    if ack_nb >= seq_base:
+                        seq_base = ack_nb + 1
+                        seq_max = WINDOW_SIZE + seq_base
+                        seq_base = ack_nb
+
+                        # Delete old chunk from buffer
+                        for nb in list(chunks):
+                            if nb < seq_base:
+                                chunks.pop(nb)
+                except:
+                    pass
+
+                # Add chunk to buffer
+                if chunk_nb < seq_max:
+                    chunk = in_file.read(Segment.MAX_PAYLOAD_SIZE)
+                    if chunk:
+                        chunks[chunk_nb] = chunk
+                        chunk_nb += 1
+                    else:
+                        last_chunk_nb = chunk_nb
+                
+                # Send chunk
+                if chunks and seq_base <= seq_nb < seq_max:
+                    try:
+                        sent_segment = Segment()
+                        sent_segment.set_header({"seq_nb": seq_nb})
+                        sent_segment.set_payload(chunks[seq_nb])
+                        self.server_connection.send_data(sent_segment, client_addr)
+                        seq_nb += 1
+                    except:
+                        pass
 
     def three_way_handshake(self, client_addr: tuple[str, int]) -> bool:
         # Three way handshake, server-side, 1 client

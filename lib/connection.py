@@ -12,6 +12,9 @@ class Connection:
         # Send single segment into destination
         self.udp_server_socket.sendto(msg.get_bytes(), dest)
 
+    def set_listen_timeout(self, sec : float):
+        self.udp_server_socket.settimeout(sec)
+
     def listen_single_segment(self) -> Segment:
         # Listen single UDP datagram within timeout and convert into segment
         return_segment = Segment()
