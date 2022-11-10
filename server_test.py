@@ -1,4 +1,4 @@
-import sys
+import sys, os
 from lib.connection import Segment, Connection
 from lib.segment import SYN_FLAG, ACK_FLAG, FIN_FLAG
 
@@ -16,15 +16,15 @@ class Server:
         self.client_list = []
 
         self.seq_number = 0
-
+        
         # Output required message
         print(f"[!] Server started at localhost:{self.broadcast_port}")
-        print(f"[!] Source file | {self.path_file_input} | {0} bytes")
+        print(f"[!] Source file | {self.path_file_input} | {os.stat(self.path_file_input).st_size} bytes")
         print(f"[!] Listening to broadcast address for clients.")
         pass
 
     def listen_for_clients(self):
-        # Waiting client for connect
+        # Waiting client for connect``
         while True:
             req_segment = self.server_connection.listen_single_segment()
             # Konvensi:
@@ -60,11 +60,30 @@ class Server:
             print(f'[!] [Handshake] Handshake to client {idx + 1}...')
 
             self.three_way_handshake(client)
+            self.file_transfer(client)
         pass
 
     def file_transfer(self, client_addr : tuple[str, int]):
         # File transfer, server-side, Send file to 1 client
-        pass
+        MAXIMUM_PAYLOAD = 32756
+        # Read bytes dari path_file_input
+        with open(self.path_file_input, "rb") as in_file:
+            while True:
+                chunk = in_file.read(MAXIMUM_PAYLOAD)
+
+                if chunk == b"":
+                    fin_segment = Segment()
+                    fin_segment.set_flag([FIN_FLAG])
+                    self.server_connection.send_data(fin_segment, client_addr)
+                    break
+                
+                # Kirim chunk ke client_addr
+                sent_segment = Segment()
+                sent_segment.set_payload(chunk)
+
+                self.server_connection.send_data(sent_segment, client_addr)
+        
+        return
 
     def three_way_handshake(self, client_addr: tuple[str, int]) -> bool:
         # Three way handshake, server-side, 1 client
@@ -107,6 +126,9 @@ if __name__ == '__main__':
     if (len(sys.argv) != 3):
         print("[!] server.py could not start. Expected 2 arguments: [broadcast port] and [path file input].")
     else:
-        main = Server()
-        main.listen_for_clients()
-        main.start_file_transfer()
+        if (not os.path.exists(sys.argv[2])):
+            print("[!] server.py could not start. Path file input doesn't exist!")
+        else:
+            main = Server()
+            main.listen_for_clients()
+            main.start_file_transfer()

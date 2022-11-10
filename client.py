@@ -60,7 +60,21 @@ class Client:
 
     def listen_file_transfer(self):
         # File transfer, client-side
-        pass
+        file_segment = self.client_connection.listen_single_segment()
+
+        with open(self.path_output, "wb") as out_file:
+            while True:
+                if (file_segment.get_flag().get_flag_bytes() == int_to_bytes(FIN_FLAG)):
+                    # Penulisan selesai.
+                    break
+                
+                # Lakukan penulisan
+                out_file.write(file_segment.get_payload())
+
+                # Dengarkan segment baru
+                file_segment = self.client_connection.listen_single_segment()
+        
+        return
 
 
 if __name__ == '__main__':
