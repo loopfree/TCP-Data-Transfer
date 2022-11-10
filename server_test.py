@@ -30,7 +30,7 @@ class Server:
             # Konvensi:
             # Request message memiliki flag b'\x00'.
             # Pada payload, ada port requester.
-            if (req_segment.get_flag().get_flag_bytes() == b'\x00'):
+            if (req_segment.get_flag().is_null_flag()):
                 client_port = int(req_segment.get_payload().decode())
 
                 print(f'[!] Received request from 127.0.0.1:{client_port}')
