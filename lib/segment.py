@@ -74,7 +74,7 @@ class Segment:
         self.checksum = self.__calculate_checksum()
 
     def set_flag(self, flag_list : list):
-        self.flag = SegmentFlag(sum(flag_list).to_bytes(1, byteorder='big'))
+        self.flag = SegmentFlag(sum(flag_list).to_bytes(1, 'big'))
         self.checksum = 0
         self.checksum = self.__calculate_checksum()
 

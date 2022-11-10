@@ -1,40 +1,9 @@
 import sys
-from lib.connection import Segment, Connection, SEQ_BYTES
+from lib.connection import Segment, Connection
+from lib.segment import SYN_FLAG, ACK_FLAG, FIN_FLAG
 
-'''
-TODO:
-
-Missing Connection constructor implementation
-Client init
-
-Missing Connection.send_data implementation
-Client init
-
-implement a new function called
-check_syn_flag() that returns true or false
-based on the syn flag in Segment
-
-Class Segment:
-implement a new function called get_seq() that returns the seq part of payload in bytes
-
-Class Segment:
-implement a new functionc alled set_seq() that will assign the seq part of payload. Parameter being of type bytes
-
-Segment file:
-define a constant SEQ_BYTES that will contain the size of SEQ
-
-Class Segment:
-implement a new function called set_ack() that will assign the ack part of payload. Parameter being of type bytes
-
-class Segment:
-implement set_syn_flag() that will assign value to the syn_flag with parameter being boolean
-
-class Segment:
-implement set_ack_flag() that will assign value to the the ack_flag with parameter being boolean
-
-class Segment:
-implement a new function called get_ack() that returns the ack value in boolean
-'''
+def int_to_bytes(num):
+    return num.to_bytes(1, 'big')
 
 class Client:
     def __init__(self):
@@ -45,46 +14,49 @@ class Client:
 
         self.client_connection = Connection("localhost", self.client_port)
 
+        self.seq_number = 0
+
         # Output required message
         print(f"[!] Client started at localhost:{self.client_port}")
+
+        # Kirim request ke server
+        request_message = Segment()
+        request_message.set_payload(f'{self.client_port}'.encode())
+        self.client_connection.send_data(request_message, ("localhost", self.broadcast_port))
         pass
 
     def three_way_handshake(self):
         # Three Way Handshake, client-side
-        
-        #todo send the first part
-        # self.connection.send_syn()
-        while True:
-            resp: Segment = self.connection.listen_single_segment()
+        # Inisialisasi dimulai dari server, tunggu request.
+        print("[!] [Handshake] Waiting for SYN request...")
+        req_segment = self.client_connection.listen_single_segment()
 
-            if resp.check_syn_flag():
-                seq = int.from_bytes(resp.get_seq(), 'big')
+        while req_segment.get_flag().get_flag_bytes() != int_to_bytes(SYN_FLAG):
+            req_segment = self.client_connection.listen_single_segment()
 
-                syn_ack_sgmt = Segment()
-                syn_ack_sgmt.set_seq((300).to_bytes(SEQ_BYTES, 'big'))
+        req_header = req_segment.get_header()
+        print("[!] [Handshake] SYN request received")
 
-                syn_ack_sgmt.set_ack((seq+1).to_bytes(SEQ_BYTES), 'big')
+        # Kirim SYN-ACK
+        print(f"[!] [Handshake] Sending broadcast SYN-ACK reply to port {self.broadcast_port}")
+        reply_segment = Segment()
+        reply_segment.set_header({
+            "seq_nb": self.seq_number,
+            "ack_nb": req_header["seq_nb"] + 1
+        })
+        reply_segment.set_flag([SYN_FLAG, ACK_FLAG])
+        print("[!] [Handshake] Waiting for response...")
+        self.client_connection.send_data(reply_segment, ("localhost", self.broadcast_port))
+        self.seq_number += 1
 
-                syn_ack_sgmt.set_syn_flag(True)
-                syn_ack_sgmt.set_ack_flag(True)
-                self.connection.send_data(syn_ack_sgmt)
+        # Tunggu ACK
+        reply_segment = self.client_connection.listen_single_segment()
 
-            elif resp.get_ack_flag():
-                seq = int.from_bytes(sgmt.get_seq(), 'big')
+        while reply_segment.get_flag().get_flag_bytes() != int_to_bytes(ACK_FLAG):
+            reply_segment = self.client_connection.listen_single_segment()
 
-                self.seq = seq
-            else:
-                seq = int.from_bytes(resp.get_seq(), 'big')
-
-                syn_ack_sgmt = Segment()
-                syn_ack_sgmt.set_seq((300).to_bytes(SEQ_BYTES, 'big'))
-
-                syn_ack_sgmt.set_ack((seq+1).to_bytes(SEQ_BYTES), 'big')
-
-                syn_ack_sgmt.set_syn_flag(True)
-                syn_ack_sgmt.set_ack_flag(True)
-                self.connection.send_data(syn_ack_sgmt, (ip, port))
-        pass
+        print("[!] [Handshake] ACK reply received")
+        return
 
     def listen_file_transfer(self):
         # File transfer, client-side
