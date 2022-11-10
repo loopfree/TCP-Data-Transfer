@@ -15,9 +15,9 @@ def add_one_complement(m : int, n : int, size : int) -> int:
 
 class SegmentFlag:
     # Constants 
-    SYN_FLAG = 0b01000000
-    ACK_FLAG = 0b00001000
-    FIN_FLAG = 0b10000000
+    SYN_FLAG = 0b00000010
+    ACK_FLAG = 0b00010000
+    FIN_FLAG = 0b00000001
 
     def __init__(self, flag : bytes):
         # Init flag variable from flag byte
