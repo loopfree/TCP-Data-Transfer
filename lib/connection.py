@@ -9,7 +9,7 @@ class Connection:
         self.udp_server_socket.bind((ip, port))
         pass
 
-    def send_data(self, msg : Segment, dest : ("ip", "port")):
+    def send_data(self, msg : Segment, dest : tuple[str, int]):
         # Send single segment into destination
         self.udp_server_socket.sendto(msg.get_bytes(), dest)
         pass

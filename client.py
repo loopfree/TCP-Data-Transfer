@@ -1,9 +1,5 @@
 import sys
-import socket
-
-import lib.connection as connection
-from lib.segment import Segment
-import lib.segment as segment
+from lib.connection import Segment, Connection, SEQ_BYTES
 
 '''
 TODO:
@@ -65,7 +61,7 @@ class Client:
                 seq = int.from_bytes(resp.get_seq(), 'big')
 
                 syn_ack_sgmt = Segment()
-                syn_ack_sgmt.set_seq((300).to_bytes(segment.SEQ_BYTES, 'big'))
+                syn_ack_sgmt.set_seq((300).to_bytes(SEQ_BYTES, 'big'))
 
                 syn_ack_sgmt.set_ack((seq+1).to_bytes(SEQ_BYTES), 'big')
 
@@ -81,7 +77,7 @@ class Client:
                 seq = int.from_bytes(resp.get_seq(), 'big')
 
                 syn_ack_sgmt = Segment()
-                syn_ack_sgmt.set_seq((300).to_bytes(segment.SEQ_BYTES, 'big'))
+                syn_ack_sgmt.set_seq((300).to_bytes(SEQ_BYTES, 'big'))
 
                 syn_ack_sgmt.set_ack((seq+1).to_bytes(SEQ_BYTES), 'big')
 

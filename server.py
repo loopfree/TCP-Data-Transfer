@@ -1,7 +1,6 @@
 from mp import Manager, Process
 
-from lib.connection import Segment, Connection
-import lib.connection as connection
+from lib.connection import Segment, Connection, SEQ_BYTES
 import sys
 
 '''
@@ -63,11 +62,11 @@ class Server:
         # Handshake & file transfer for all client
         pass
 
-    def file_transfer(self, client_addr : ("ip", "port")):
+    def file_transfer(self, client_addr : tuple[str, int]):
         # File transfer, server-side, Send file to 1 client
         pass
 
-    def three_way_handshake(self, client_addr: ("ip", "port")) -> bool:
+    def three_way_handshake(self, client_addr: tuple[str, int]) -> bool:
         # Three way handshake, server-side, 1 client
 
         # SYN
