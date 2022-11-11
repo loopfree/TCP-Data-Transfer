@@ -1,9 +1,8 @@
 import sys
+import time
 from lib.connection import Connection
 from lib.segment import Segment, SegmentFlag
 
-def int_to_bytes(num):
-    return num.to_bytes(1, 'big')
 
 class Client:
     def __init__(self):
@@ -23,7 +22,6 @@ class Client:
         request_message = Segment()
         request_message.set_payload(f'{self.client_port}'.encode())
         self.client_connection.send_data(request_message, ("localhost", self.broadcast_port))
-        pass
 
     def three_way_handshake(self):
         # Three Way Handshake, client-side
@@ -60,22 +58,43 @@ class Client:
 
     def listen_file_transfer(self):
         # File transfer, client-side
-        file_segment = self.client_connection.listen_single_segment()
+        ack_nb = Segment.INIT_ACK_NB
+        SEQ_TIMEOUT = 30
+        last_recv_nb = ack_nb - 1
+        last_recv_time = time.time()
+        self.client_connection.set_listen_timeout(5)
 
         with open(self.path_output, "wb") as out_file:
             while True:
-                if file_segment.get_flag().is_fin_flag():
-                    # Penulisan selesai.
-                    break
+                try:
+                    # Receive segment
+                    file_segment = self.client_connection.listen_single_segment()
+                    last_recv_time = time.time()
+
+                    # Finish receiving file
+                    if file_segment.get_flag().is_fin_flag():
+                        break
+                        
+                    # Check segment
+                    if file_segment.get_header()["ack_nb"] == ack_nb and file_segment.valid_checksum():
+                        out_file.write(file_segment.get_payload())
+                        print(f"[!] [File Transfer] Received segment {ack_nb}")
+                        last_recv_nb = ack_nb
+                        ack_nb += 1
                 
-                # Lakukan penulisan
-                out_file.write(file_segment.get_payload())
-
-                # Dengarkan segment baru
-                file_segment = self.client_connection.listen_single_segment()
+                finally:
+                    # Send ACK
+                    ack_segment = Segment()
+                    ack_segment.set_header({"ack_nb": last_recv_nb})
+                    ack_segment.set_flag([SegmentFlag.ACK_FLAG])
+                    print(f"[!] [File Transfer] Sending ACK {last_recv_nb} to server")
+                
+                # Force close connection on timeout
+                if time.time() - last_recv_time > SEQ_TIMEOUT:
+                    break
         
+        self.client_connection.close_socket()
         return
-
 
 if __name__ == '__main__':
     if (len(sys.argv) != 4):

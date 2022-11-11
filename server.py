@@ -1,8 +1,8 @@
-from lib.connection import Connection
-from lib.segment import Segment, SegmentFlag
 import sys
 import time
 import socket
+from lib.connection import Connection
+from lib.segment import Segment, SegmentFlag
 
 '''
 TODO:
@@ -64,22 +64,13 @@ class Server:
         # Handshake & file transfer for all clients
         print('[!] Commencing file transfer...')
         for idx, client in enumerate(self.clients):
-            print(f'[!] [Handshake] Handshake to client {idx + 1}...')
             if self.three_way_handshake(client):
                 self.file_transfer(client)
-                # Close connection
-                fin_segment = Segment()
-                fin_segment.set_flag([SegmentFlag.FIN_FLAG])
-                self.server_connection.send_data(fin_segment, client)
-
-        print('[!] Commencing file transfer...')
-
 
     def file_transfer(self, client_addr : tuple[str, int]):
         # File transfer, server-side, Send file to 1 client
-        # TODO: retransmit on timeout
-
         WINDOW_SIZE = 5
+        ACK_TIMEOUT = 10
         seq_base = Segment.INIT_SEQ_NB      # Minimum seq number to be sent (inclusive)
         seq_max = WINDOW_SIZE + seq_base    # Maximum seq number to be sent (exclusive)
         seq_nb = seq_base                   # Current seq number
@@ -88,12 +79,16 @@ class Server:
         chunk_nb = seq_base                 # Current chunk number
         last_chunk_nb = -1                  # Last chunk number of the file
         self.server_connection.set_listen_timeout(0.05)
-        
+        last_recv_time = time.time()
+
         with open(self.path_file_input, "rb") as in_file:
             while True:
                 # Receive ACK
                 try:
                     recv_segment = self.server_connection.listen_single_segment()
+                    if not recv_segment.get_flag().is_ack_flag():
+                        raise TypeError
+                    
                     ack_nb = recv_segment.get_header()["ack_nb"]
 
                     if ack_nb == last_chunk_nb:     # Finished transfering file
@@ -102,7 +97,8 @@ class Server:
                     if ack_nb >= seq_base:
                         seq_base = ack_nb + 1
                         seq_max = WINDOW_SIZE + seq_base
-                        seq_base = ack_nb
+                        last_recv_time = time.time()
+                        print(f"[!] [File Transfer] Received ACK {ack_nb}")
 
                         # Delete old chunk from buffer
                         for nb in list(chunks):
@@ -120,6 +116,10 @@ class Server:
                     else:
                         last_chunk_nb = chunk_nb
                 
+                # Check timeout
+                if time.time() - last_recv_time > ACK_TIMEOUT:
+                    seq_nb = seq_base
+                
                 # Send chunk
                 if chunks and seq_base <= seq_nb < seq_max:
                     try:
@@ -127,13 +127,20 @@ class Server:
                         sent_segment.set_header({"seq_nb": seq_nb})
                         sent_segment.set_payload(chunks[seq_nb])
                         self.server_connection.send_data(sent_segment, client_addr)
+                        print(f"[!] [File Transfer] Sending segment {seq_nb}")
                         seq_nb += 1
                     except:
                         pass
 
+        # Close connection
+        fin_segment = Segment()
+        fin_segment.set_flag([SegmentFlag.FIN_FLAG])
+        self.server_connection.send_data(fin_segment, client_addr)
+
+
     def three_way_handshake(self, client_addr: tuple[str, int]) -> bool:
         # Three way handshake, server-side, 1 client
-
+        print(f'[!] [Handshake] Handshake to client ({client_addr[0]}:{client_addr[1]}) ...')
         # SYN
         # Send SYN
         try:
