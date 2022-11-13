@@ -23,7 +23,6 @@ class Server:
         self.server_connection.set_listen_timeout(15)
         # Waiting client for connect
         client_address = []
-        client_handled = []
 
         is_listening = True
         while is_listening:
@@ -31,9 +30,8 @@ class Server:
             addr = int.from_bytes(sgmt_payload, "big")
 
             if addr:
-                client_address.append(addr)
-                client_handled.append(False)
-                print(f"[!] Client ({addr[0]}:{addr[1]}) discovered")
+                client_address.append(("localhost", addr))
+                print(f"[!] Client (localhost:{addr}) discovered")
 
                 while True:
                     accept_more_client = input("[?] Listen for more client? (y/n)")
@@ -51,7 +49,6 @@ class Server:
             print(f"{index+1} {address[0]}:{address[1]}")
 
         self.clients = client_address
-        return client_address, client_handled       # obsolete? no need handled list?
 
     def start_file_transfer(self):
         # Handshake & file transfer for all clients
