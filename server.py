@@ -1,3 +1,4 @@
+import os
 import sys
 import time
 import socket
@@ -15,19 +16,19 @@ class Server:
 
         # Output required message
         print(f"[!] Server started at localhost:{self.broadcast_port}")
-        print(f"[!] Source file | {self.path_file_input} | {0} bytes")
+        print(f"[!] Source file | {self.path_file_input} | {os.stat(self.path_file_input).st_size} bytes")
         print(f"[!] Listening to broadcast address for clients.")
 
     def listen_for_clients(self):
         # Set timeout 15 seconds
-        self.server_connection.set_listen_timeout(15)
+        self.server_connection.set_listen_timeout(100)
         # Waiting client for connect
         client_address = []
 
         is_listening = True
         while is_listening:
-            sgmt_payload = self.server_connection.listen_single_segment().get_payload()
-            addr = int.from_bytes(sgmt_payload, "big")
+            sgmt_payload = self.server_connection.listen_single_segment().get_payload().decode()
+            addr = int(sgmt_payload)
 
             if addr:
                 client_address.append(("localhost", addr))
@@ -45,7 +46,7 @@ class Server:
         
         print(f"{len(client_address)} client(s) discovered")
         print("Details:")
-        for address, index in enumerate(client_address):
+        for index, address in enumerate(client_address):
             print(f"{index+1} {address[0]}:{address[1]}")
 
         self.clients = client_address
@@ -167,7 +168,7 @@ class Server:
                 ack_sgmt.set_header({'ack_nb': sgmt.get_header()['seq_nb'] + 1})
                 ack_sgmt.set_flag([SegmentFlag.ACK_FLAG])
 
-                self.connection.send_data(ack_sgmt, client_addr)
+                self.server_connection.send_data(ack_sgmt, client_addr)
                 print(f"[({client_addr[0]}:{client_addr[1]}) THREE WAY HANDSHAKE] Send Segment ACK")
                 print(f"[({client_addr[0]}:{client_addr[1]}) THREE WAY HANDSHAKE] Succeed, Starting The Data Transfer..")
                 
