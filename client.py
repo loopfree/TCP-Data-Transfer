@@ -82,14 +82,16 @@ class Client:
                         last_recv_nb = ack_nb
                         ack_nb += 1
                 
-                finally:
-                    if last_recv_nb > 0:
-                        # Send ACK
-                        ack_segment = Segment()
-                        ack_segment.set_header({"ack_nb": last_recv_nb})
-                        ack_segment.set_flag([SegmentFlag.ACK_FLAG])
-                        self.client_connection.send_data(ack_segment, ("localhost", self.broadcast_port))
-                        print(f"[!] [File Transfer] Sending ACK {last_recv_nb} to server")
+                except:
+                    pass
+
+                if last_recv_nb > 0:
+                    # Send ACK
+                    ack_segment = Segment()
+                    ack_segment.set_header({"ack_nb": last_recv_nb})
+                    ack_segment.set_flag([SegmentFlag.ACK_FLAG])
+                    self.client_connection.send_data(ack_segment, ("localhost", self.broadcast_port))
+                    print(f"[!] [File Transfer] Sending ACK {last_recv_nb} to server")
                 
                 # Force close connection on timeout
                 if time.time() - last_recv_time > SEQ_TIMEOUT:

@@ -67,7 +67,7 @@ class Server:
         seq_nb = seq_base                   # Current seq number
         ack_nb = 0                          # Last ack number
         chunks = {}                         # Map seq number to data
-        chunk_nb = seq_base                 # Current chunk number
+        chunk_nb = seq_base - 1             # Current chunk number
         last_chunk_nb = -1                  # Last chunk number of the file
         self.server_connection.set_listen_timeout(0.5)
         last_recv_time = time.time()
@@ -81,9 +81,7 @@ class Server:
                         raise TypeError
                     
                     ack_nb = recv_segment.get_header()["ack_nb"]
-                    if ack_nb == last_chunk_nb:     # Finished transfering file
-                        break
-
+                    
                     if ack_nb >= seq_base:
                         seq_base = ack_nb + 1
                         seq_max = WINDOW_SIZE + seq_base
@@ -96,13 +94,16 @@ class Server:
                                 chunks.pop(nb)
                 except:
                     pass
-
+                
+                if ack_nb == last_chunk_nb:     # Finished transfering file
+                    break
+                
                 # Add chunk to buffer
                 if chunk_nb < seq_max:
                     chunk = in_file.read(Segment.MAX_PAYLOAD_SIZE)
                     if chunk:
-                        chunks[chunk_nb] = chunk
                         chunk_nb += 1
+                        chunks[chunk_nb] = chunk
                     else:
                         last_chunk_nb = chunk_nb
                 
