@@ -4,14 +4,6 @@ import socket
 from lib.connection import Connection
 from lib.segment import Segment, SegmentFlag
 
-'''
-TODO:
-
-class Connection:
-add one more parameter which stands for
-"isServer"
-if it is true, then the socket will be made for a server
-'''
 
 class Server:
     def __init__(self):
@@ -35,7 +27,7 @@ class Server:
 
         is_listening = True
         while is_listening:
-            msg, addr = self.connection.listen_single_segment()
+            msg, addr = self.server_connection.listen_single_segment()
 
             if addr:
                 client_address.append(addr)
@@ -147,7 +139,7 @@ class Server:
             syn_sgmt = Segment()
             syn_sgmt.set_header({"seq_nb": 100})
             syn_sgmt.set_flag([SegmentFlag.SYN_FLAG])
-            self.connection.send_data(syn_sgmt, client_addr)
+            self.server_connection.send_data(syn_sgmt, client_addr)
             print(f"[({client_addr[0]}:{client_addr[1]}) THREE WAY HANDSHAKE] SYN Segment Sent")
         except socket.timeout:
             print(f"[({client_addr[0]}:{client_addr[1]}) THREE WAY HANDSHAKE] SYN Timeout")
@@ -159,7 +151,7 @@ class Server:
         # Wait SYN-ACK (internal function)
         try:
             print(f"[({client_addr[0]}:{client_addr[1]}) THREE WAY HANDSHAKE] Waiting For Segment SYN-ACK")
-            syn_ack_segment = self.connection.listen_single_segment()
+            syn_ack_segment = self.server_connection.listen_single_segment()
             sgmt : Segment = syn_ack_segment
         except socket.timeout:
             print(f"[({client_addr[0]}:{client_addr[1]}) THREE WAY HANDSHAKE] SYN-ACK Timeout")
