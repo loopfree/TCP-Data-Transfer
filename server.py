@@ -27,7 +27,8 @@ class Server:
 
         is_listening = True
         while is_listening:
-            msg, addr = self.server_connection.listen_single_segment()
+            sgmt_payload = self.server_connection.listen_single_segment().get_payload()
+            addr = int.from_bytes(sgmt_payload, "big")
 
             if addr:
                 client_address.append(addr)
