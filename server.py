@@ -21,7 +21,7 @@ class Server:
 
     def listen_for_clients(self):
         # Set timeout 15 seconds
-        self.server_connection.set_listen_timeout(100)
+        self.server_connection.set_listen_timeout(60)
         # Waiting client for connect
         client_address = []
 
@@ -42,7 +42,7 @@ class Server:
                     if accept_more_client.lower() == 'y':
                         break
                     
-                    print('[!] Invalid Input, Try Again')
+                    print("[!] Invalid Input, Try Again")
         
         print(f"{len(client_address)} client(s) discovered")
         print("Details:")
@@ -69,7 +69,7 @@ class Server:
         chunks = {}                         # Map seq number to data
         chunk_nb = seq_base                 # Current chunk number
         last_chunk_nb = -1                  # Last chunk number of the file
-        self.server_connection.set_listen_timeout(0.05)
+        self.server_connection.set_listen_timeout(0.5)
         last_recv_time = time.time()
 
         with open(self.path_file_input, "rb") as in_file:
@@ -81,7 +81,6 @@ class Server:
                         raise TypeError
                     
                     ack_nb = recv_segment.get_header()["ack_nb"]
-
                     if ack_nb == last_chunk_nb:     # Finished transfering file
                         break
 
@@ -143,6 +142,7 @@ class Server:
         except socket.timeout:
             print(f"[({client_addr[0]}:{client_addr[1]}) THREE WAY HANDSHAKE] SYN Timeout")
             print(f"[({client_addr[0]}:{client_addr[1]}) THREE WAY HANDSHAKE] SYN Segment Send Failed")
+
             return False
 
 
@@ -155,6 +155,7 @@ class Server:
         except socket.timeout:
             print(f"[({client_addr[0]}:{client_addr[1]}) THREE WAY HANDSHAKE] SYN-ACK Timeout")
             print(f"[({client_addr[0]}:{client_addr[1]}) THREE WAY HANDSHAKE] Failed")
+
             return False
 
 
@@ -183,6 +184,7 @@ class Server:
             print(f"[({client_addr[0]}:{client_addr[1]}) THREE WAY HANDSHAKE] ACK Timeout")
             print(f"[({client_addr[0]}:{client_addr[1]}) THREE WAY HANDSHAKE] Unable To Send Segment ACK")
             print(f"[({client_addr[0]}:{client_addr[1]}) THREE WAY HANDSHAKE] Failed, Cannot Proceed To Data Transfer")
+
             return False
 
 

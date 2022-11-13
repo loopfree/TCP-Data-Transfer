@@ -62,7 +62,7 @@ class Client:
         SEQ_TIMEOUT = 30
         last_recv_nb = ack_nb - 1
         last_recv_time = time.time()
-        self.client_connection.set_listen_timeout(5)
+        self.client_connection.set_listen_timeout(10)
 
         with open(self.path_output, "wb") as out_file:
             while True:
@@ -76,18 +76,20 @@ class Client:
                         break
                         
                     # Check segment
-                    if file_segment.get_header()["ack_nb"] == ack_nb and file_segment.valid_checksum():
+                    if file_segment.get_header()["seq_nb"] == ack_nb and file_segment.valid_checksum():
                         out_file.write(file_segment.get_payload())
                         print(f"[!] [File Transfer] Received segment {ack_nb}")
                         last_recv_nb = ack_nb
                         ack_nb += 1
                 
                 finally:
-                    # Send ACK
-                    ack_segment = Segment()
-                    ack_segment.set_header({"ack_nb": last_recv_nb})
-                    ack_segment.set_flag([SegmentFlag.ACK_FLAG])
-                    print(f"[!] [File Transfer] Sending ACK {last_recv_nb} to server")
+                    if last_recv_nb > 0:
+                        # Send ACK
+                        ack_segment = Segment()
+                        ack_segment.set_header({"ack_nb": last_recv_nb})
+                        ack_segment.set_flag([SegmentFlag.ACK_FLAG])
+                        self.client_connection.send_data(ack_segment, ("localhost", self.broadcast_port))
+                        print(f"[!] [File Transfer] Sending ACK {last_recv_nb} to server")
                 
                 # Force close connection on timeout
                 if time.time() - last_recv_time > SEQ_TIMEOUT:
