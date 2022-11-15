@@ -71,19 +71,19 @@ class Client:
             self.seq_number += 1
 
             # Tunggu ACK
-            print("[!] [Three-Way Handshake] Waiting for response...")
+            # print("[!] [Three-Way Handshake] Waiting for response...")
 
-            try:
-                reply_segment = self.client_connection.listen_single_segment()
-            except socket.timeout:
-                print(f"[!] [Three-Way Handshake] Did not receive ACK segment, retrying ...")
-                continue
+            # try:
+            #     reply_segment = self.client_connection.listen_single_segment()
+            # except socket.timeout:
+            #     print(f"[!] [Three-Way Handshake] Did not receive ACK segment, retrying ...")
+            #     continue
 
-            if (not reply_segment.get_flag().is_ack_flag()):
-                print(f"[!] [Three-Way Handshake] Wrong flag received. Expected ACK flag, retrying ...")
-                continue
+            # if (not reply_segment.get_flag().is_ack_flag()):
+            #     print(f"[!] [Three-Way Handshake] Wrong flag received. Expected ACK flag, retrying ...")
+            #     continue
 
-            print("[!] [Three-Way Handshake] ACK reply received")
+            # print("[!] [Three-Way Handshake] ACK reply received")
             return True
 
     def listen_file_transfer(self):
@@ -92,7 +92,7 @@ class Client:
         SEQ_TIMEOUT = 30
         last_recv_nb = ack_nb - 1
         last_recv_time = time.time()
-        self.client_connection.set_listen_timeout(10)
+        self.client_connection.set_listen_timeout(1)
 
         with open(self.path_output, "wb") as out_file:
             while True:
@@ -105,7 +105,7 @@ class Client:
                     if file_segment.get_flag().is_fin_flag():
                         self.four_way_handshake()
                         return
-                        
+
                     # Check segment
                     if file_segment.get_header()["seq_nb"] == ack_nb and file_segment.valid_checksum():
                         out_file.write(file_segment.get_payload())
@@ -119,10 +119,10 @@ class Client:
                 if last_recv_nb > 0:
                     # Send ACK
                     ack_segment = Segment()
-                    ack_segment.set_header({"ack_nb": last_recv_nb})
+                    ack_segment.set_header({"ack_nb": ack_nb})
                     ack_segment.set_flag([SegmentFlag.ACK_FLAG])
                     self.client_connection.send_data(ack_segment, ("localhost", self.broadcast_port))
-                    print(f"[!] [File Transfer] Sending ACK {last_recv_nb} to server")
+                    print(f"[!] [File Transfer] Sending ACK {ack_nb} to server")
                 
                 # Force close connection on timeout
                 if time.time() - last_recv_time > SEQ_TIMEOUT:
