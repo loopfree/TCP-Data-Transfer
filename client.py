@@ -1,5 +1,6 @@
 import sys
 import time
+import socket
 from lib.connection import Connection
 from lib.segment import Segment, SegmentFlag
 
@@ -73,7 +74,8 @@ class Client:
 
                     # Finish receiving file
                     if file_segment.get_flag().is_fin_flag():
-                        break
+                        self.four_way_handshake()
+                        return
                         
                     # Check segment
                     if file_segment.get_header()["seq_nb"] == ack_nb and file_segment.valid_checksum():
@@ -97,8 +99,33 @@ class Client:
                 if time.time() - last_recv_time > SEQ_TIMEOUT:
                     break
         
-        self.client_connection.close_socket()
         return
+
+    def four_way_handshake(self):
+        print("[!] [Four Way Handshake] Handshake starting ...")
+        while True:
+            # Kirim ACK
+            ack_sgmt = Segment()
+            ack_sgmt.set_flag([SegmentFlag.ACK_FLAG])
+            self.client_connection.send_data(ack_sgmt, ("localhost", self.broadcast_port))
+            print("[!] [Four Way Handshake] ACK segment sent!")
+
+            # Send FIN flag
+            fin_sgmt = Segment()
+            fin_sgmt.set_flag([SegmentFlag.FIN_FLAG])
+            self.client_connection.send_data(fin_sgmt, ("localhost", self.broadcast_port))
+            print("[!] [Four Way Handshake] FIN segment sent!")
+
+            # Wait for ACK flag
+            try:
+                ack_sgmt = self.client_connection.listen_single_segment()
+                if ack_sgmt.get_flag().is_ack_flag():
+                    print("[!] [Four Way Handshake] ACK segment received!")
+                    return True
+                else:
+                    return False
+            except socket.timeout:
+                return False
 
 if __name__ == '__main__':
     if (len(sys.argv) != 4):
