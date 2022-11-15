@@ -26,36 +26,65 @@ class Client:
 
     def three_way_handshake(self):
         # Three Way Handshake, client-side
-        # Inisialisasi dimulai dari server, tunggu request.
-        print("[!] [Handshake] Waiting for SYN request...")
-        req_segment = self.client_connection.listen_single_segment()
+        '''
+            How this works:
+            (1) Server starts the three-way handshake
+            (2) When listening for SYN and ACK segments, maximum timeout is 1 second. If timeout happens, restart handshake.
+            (3) If three-way handshake takes longer than 15 seconds, mark process as failed.
+        '''
+        WAIT_TIME_LIMIT = 1        # 1 seconds
+        HANDSHAKE_TIME_LIMIT = 15  # 15 seconds
+        start_handshake_time = time.time()
 
-        while not req_segment.get_flag().is_syn_flag():
-            req_segment = self.client_connection.listen_single_segment()
+        self.client_connection.set_listen_timeout(WAIT_TIME_LIMIT)
 
-        req_header = req_segment.get_header()
-        print("[!] [Handshake] SYN request received")
+        while True:
+            # Check if timeout limit reached
+            if time.time() - start_handshake_time > HANDSHAKE_TIME_LIMIT:
+                print(f'[!] Could not establish connection with broadcast port {self.broadcast_port}. Stopping process ...')
+                return False
 
-        # Kirim SYN-ACK
-        print(f"[!] [Handshake] Sending broadcast SYN-ACK reply to port {self.broadcast_port}")
-        reply_segment = Segment()
-        reply_segment.set_header({
-            "seq_nb": self.seq_number,
-            "ack_nb": req_header["seq_nb"] + 1
-        })
-        reply_segment.set_flag([SegmentFlag.SYN_FLAG, SegmentFlag.ACK_FLAG])
-        print("[!] [Handshake] Waiting for response...")
-        self.client_connection.send_data(reply_segment, ("localhost", self.broadcast_port))
-        self.seq_number += 1
+            # Inisialisasi dimulai dari server, tunggu request.
+            print("[!] [Three-Way Handshake] Waiting for SYN request...")
+            try:
+                req_segment = self.client_connection.listen_single_segment()
+            except socket.timeout:
+                print(f"[!] [Three-Way Handshake] Did not receive SYN segment, retrying ...")
+                continue
 
-        # Tunggu ACK
-        reply_segment = self.client_connection.listen_single_segment()
+            if (not req_segment.get_flag().is_syn_flag()):
+                print(f"[!] [Three-Way Handshake] Wrong flag received. Expected SYN flag, retrying ...")
+                continue
 
-        while not reply_segment.get_flag().is_ack_flag():
-            reply_segment = self.client_connection.listen_single_segment()
+            req_header = req_segment.get_header()
+            print("[!] [Three-Way Handshake] SYN request received")
 
-        print("[!] [Handshake] ACK reply received")
-        return
+            # Kirim SYN-ACK
+            print(f"[!] [Three-Way Handshake] Sending broadcast SYN-ACK reply to port {self.broadcast_port}")
+            reply_segment = Segment()
+            reply_segment.set_header({
+                "seq_nb": self.seq_number,
+                "ack_nb": req_header["seq_nb"] + 1
+            })
+            reply_segment.set_flag([SegmentFlag.SYN_FLAG, SegmentFlag.ACK_FLAG])
+            self.client_connection.send_data(reply_segment, ("localhost", self.broadcast_port))
+            self.seq_number += 1
+
+            # Tunggu ACK
+            print("[!] [Three-Way Handshake] Waiting for response...")
+
+            try:
+                reply_segment = self.client_connection.listen_single_segment()
+            except socket.timeout:
+                print(f"[!] [Three-Way Handshake] Did not receive ACK segment, retrying ...")
+                continue
+
+            if (not reply_segment.get_flag().is_ack_flag()):
+                print(f"[!] [Three-Way Handshake] Wrong flag received. Expected ACK flag, retrying ...")
+                continue
+
+            print("[!] [Three-Way Handshake] ACK reply received")
+            return True
 
     def listen_file_transfer(self):
         # File transfer, client-side
@@ -132,5 +161,5 @@ if __name__ == '__main__':
         print("[!] client.py could not start. Expected 3 arguments: [client port], [broadcast port], and [path file input].")
     else:
         main = Client()
-        main.three_way_handshake()
-        main.listen_file_transfer()
+        if main.three_way_handshake():
+            main.listen_file_transfer()

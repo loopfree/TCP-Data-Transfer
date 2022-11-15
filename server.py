@@ -140,62 +140,58 @@ class Server:
 
     def three_way_handshake(self, client_addr: tuple[str, int]) -> bool:
         # Three way handshake, server-side, 1 client
-        print(f'[!] [Handshake] Handshake to client ({client_addr[0]}:{client_addr[1]}) ...')
-        # SYN
-        # Send SYN
-        try:
+        '''
+            How this works:
+            (1) Server starts the three-way handshake
+            (2) When listening for SYN-ACK segments, maximum timeout is 1 second. If timeout happens, restart handshake.
+            (3) If three-way handshake takes longer than 15 seconds, mark process as failed.
+        '''
+        WAIT_FOR_SYN_ACK = 1       # 1 seconds
+        HANDSHAKE_TIME_LIMIT = 15  # 15 seconds
+        start_handshake_time = time.time()
+
+        self.server_connection.set_listen_timeout(WAIT_FOR_SYN_ACK)
+
+        print(f'[!] [Three-Way Handshake] Starting three-way handshake to client {client_addr[0]}:{client_addr[1]} ...')
+
+        while True:
+            # Check if timeout limit reached
+            if time.time() - start_handshake_time > HANDSHAKE_TIME_LIMIT:
+                print(f'[!] Could not establish connection with client {client_addr[0]}:{client_addr[1]}. Skipping client ...')
+                return False
+
+            # Send SYN segment
             syn_sgmt = Segment()
             syn_sgmt.set_header({"seq_nb": 100})
             syn_sgmt.set_flag([SegmentFlag.SYN_FLAG])
             self.server_connection.send_data(syn_sgmt, client_addr)
-            print(f"[({client_addr[0]}:{client_addr[1]}) Handshake] SYN Segment Sent")
-        except socket.timeout:
-            print(f"[({client_addr[0]}:{client_addr[1]}) Handshake] SYN Timeout")
-            print(f"[({client_addr[0]}:{client_addr[1]}) Handshake] SYN Segment Send Failed")
+            print(f"[!] [Three-Way Handshake] SYN segment sent to {client_addr[0]}:{client_addr[1]}!")
 
-            return False
+            # Wait for SYN-ACK (internal function)
+            try:
+                print(f"[!] [Three-Way Handshake] Waiting for SYN-ACK segment from {client_addr[0]}:{client_addr[1]} ...")
+                syn_ack_segment = self.server_connection.listen_single_segment()
+                sgmt : Segment = syn_ack_segment
+            except socket.timeout:
+                print(f"[!] [Three-Way Handshake] Did not receive SYN-ACK segment from {client_addr[0]}:{client_addr[1]}, retrying ... ")
+                continue
 
-
-        # SYN-ACK
-        # Wait SYN-ACK (internal function)
-        try:
-            print(f"[({client_addr[0]}:{client_addr[1]}) Handshake] Waiting For Segment SYN-ACK")
-            syn_ack_segment = self.server_connection.listen_single_segment()
-            sgmt : Segment = syn_ack_segment
-        except socket.timeout:
-            print(f"[({client_addr[0]}:{client_addr[1]}) Handshake] SYN-ACK Timeout")
-            print(f"[({client_addr[0]}:{client_addr[1]}) Handshake] Failed")
-
-            return False
-
-
-        # ACK
-        # Receive ACK
-        try:
+            # Receive SYN-ACK
             if sgmt.get_flag().is_syn_flag() and sgmt.get_flag().is_ack_flag():
-                print(f"[({client_addr[0]}:{client_addr[1]}) Handshake] Segment SYN-ACK Received")
+                print(f"[!] [Three-Way Handshake] Received SYN-ACK segment from {client_addr[0]}:{client_addr[1]}!")
 
                 ack_sgmt = Segment()
                 ack_sgmt.set_header({'ack_nb': sgmt.get_header()['seq_nb'] + 1})
                 ack_sgmt.set_flag([SegmentFlag.ACK_FLAG])
 
                 self.server_connection.send_data(ack_sgmt, client_addr)
-                print(f"[({client_addr[0]}:{client_addr[1]}) Handshake] Send Segment ACK")
-                print(f"[({client_addr[0]}:{client_addr[1]}) Handshake] Succeed, Starting The Data Transfer..")
+                print(f"[!] [Three-Way Handshake] Sent ACK segment to {client_addr[0]}:{client_addr[1]}!")
+                print(f"[!] [Three-Way Handshake] Connection established. Sending data to client ...")
                 
                 return True
-            
-            print(f"[({client_addr[0]}:{client_addr[1]}) Handshake] Unidentified Segment Detected")
-            print(f"[({client_addr[0]}:{client_addr[1]}) Handshake] Failed")
-            
-            return False
-
-        except socket.timeout:
-            print(f"[({client_addr[0]}:{client_addr[1]}) Handshake] ACK Timeout")
-            print(f"[({client_addr[0]}:{client_addr[1]}) Handshake] Unable To Send Segment ACK")
-            print(f"[({client_addr[0]}:{client_addr[1]}) Handshake] Failed, Cannot Proceed To Data Transfer")
-
-            return False
+            else:
+                print(f"[!] [Three-Way Handshake] Wrong segment received. Expected SYN-ACK from {client_addr[0]}:{client_addr[1]}, retrying ... ")
+                continue
 
     def four_way_handshake(self, client_addr: tuple[str, int]):
         # Tearing The Session
