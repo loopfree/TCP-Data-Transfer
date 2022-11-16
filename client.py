@@ -71,20 +71,26 @@ class Client:
             self.seq_number += 1
 
             # Tunggu ACK
-            # print("[!] [Three-Way Handshake] Waiting for response...")
+            print("[!] [Three-Way Handshake] Waiting for response...")
+            try:
+                reply_segment = self.client_connection.listen_single_segment()
+            except socket.timeout:
+                print(f"[!] [Three-Way Handshake] Did not receive ACK segment, retrying ...")
+                continue
+            
+            if (reply_segment.get_flag().is_ack_flag()):
+                print("[!] [Three-Way Handshake] ACK reply received")
+                break
 
-            # try:
-            #     reply_segment = self.client_connection.listen_single_segment()
-            # except socket.timeout:
-            #     print(f"[!] [Three-Way Handshake] Did not receive ACK segment, retrying ...")
-            #     continue
-
-            # if (not reply_segment.get_flag().is_ack_flag()):
-            #     print(f"[!] [Three-Way Handshake] Wrong flag received. Expected ACK flag, retrying ...")
-            #     continue
-
-            # print("[!] [Three-Way Handshake] ACK reply received")
-            return True
+            # Apabila belum menerima ACK tapi menerima file kiriman dari server, otomatis dilanjutkan ke proses file transfer
+            elif (reply_segment.get_flag().is_null_flag()):
+                print(f"[!] [Three-Way Handshake] File segment received instead. Commencing to file transfer ...")
+                break
+            
+            else:
+                print(f"[!] [Three-Way Handshake] Wrong flag received. Expecting ACK flag, retrying ...")
+            
+        return True
 
     def listen_file_transfer(self):
         # File transfer, client-side
@@ -131,30 +137,30 @@ class Client:
         return
 
     def four_way_handshake(self):
-        print("[!] [Four Way Handshake] Handshake starting ...")
+        print("[!] [Four-Way Handshake] Handshake starting ...")
         while True:
-            # Kirim ACK
+            # Send ACK
             ack_sgmt = Segment()
             ack_sgmt.set_flag([SegmentFlag.ACK_FLAG])
             self.client_connection.send_data(ack_sgmt, ("localhost", self.broadcast_port))
-            print("[!] [Four Way Handshake] ACK segment sent!")
+            print("[!] [Four-Way Handshake] ACK segment sent!")
 
             # Send FIN flag
             fin_sgmt = Segment()
             fin_sgmt.set_flag([SegmentFlag.FIN_FLAG])
             self.client_connection.send_data(fin_sgmt, ("localhost", self.broadcast_port))
-            print("[!] [Four Way Handshake] FIN segment sent!")
+            print("[!] [Four-Way Handshake] FIN segment sent!")
 
             # Wait for ACK flag
             try:
                 ack_sgmt = self.client_connection.listen_single_segment()
                 if ack_sgmt.get_flag().is_ack_flag():
-                    print("[!] [Four Way Handshake] ACK segment received!")
-                    return True
+                    print("[!] [Four-Way Handshake] ACK segment received!")
                 else:
-                    return False
+                    continue        # Restart sending ACK
             except socket.timeout:
-                return False
+                print("[!] [Four-Way Handshake] Timeout on no ACK received, closing connection automatically ...")
+                break
 
 if __name__ == '__main__':
     if (len(sys.argv) != 4):
