@@ -46,6 +46,7 @@ class Server:
                         print("[!] Invalid Input, Try Again")
             except socket.timeout:
                 print(f"[!] Timeout, stopped listening for clients")
+                break
         
         print(f"{len(client_address)} client(s) discovered")
         print("Details:")
@@ -71,16 +72,15 @@ class Server:
         seq_max = WINDOW_SIZE + seq_base - 1    # End of window
         seq_num = seq_base                      # Sequence number to send
         last_seq_num = None                     # Biggest seq num that can be sent
-        # File chunks
-        chunk = {}
+        last_ack_time = time.time()             # Last ack timestamp
+        chunk = {}                              # File chunks
 
-        print(f'[!] [Client x] Initiating file transfer ...')
-        
+        print(f'[!] [Client {client_addr[0]}:{client_addr[1]}] Initiating file transfer ...')
         self.server_connection.set_listen_timeout(ACK_TIMEOUT)
 
         with open(self.path_file_input, "rb") as in_file:
             # Kirim segmen-segmen awal!
-            while (seq_num <= seq_max):
+            while (seq_num <= seq_max):       
                 read_chunk = in_file.read(Segment.MAX_PAYLOAD_SIZE)
                 if read_chunk:
                     chunk[seq_num] = read_chunk
@@ -90,7 +90,7 @@ class Server:
                     })
                     file_segment.set_payload(chunk[seq_num])
                     self.server_connection.send_data(file_segment, client_addr)
-                    print(f'[!] [Client x] [Num = {seq_num}] Sending segment to client ...')
+                    print(f'[!] [Client {client_addr[0]}:{client_addr[1]}] [Num = {seq_num}] Sending segment to client ...')
                     seq_num += 1
                 else:
                     if not last_seq_num:
@@ -98,6 +98,10 @@ class Server:
                     break
 
             while True:
+                if time.time() - last_ack_time > FILE_TRANSFER_TIMEOUT:
+                    print(f"[!] [Client {client_addr[0]}:{client_addr[1]}] File transfer timeout, aborting transfer")
+                    break
+
                 try:
                     recv_segment = self.server_connection.listen_single_segment()
 
@@ -107,72 +111,72 @@ class Server:
 
                     # Baca header dari ACK -- khususnya ack number.
                     ack_number = recv_segment.get_header()['ack_nb']
-                    if ack_number > seq_base + 1:
+                    if ack_number >= seq_base + 1:
                         seq_max = (seq_max - seq_base) + ack_number
                         seq_base = ack_number
-                    elif ack_number == seq_base + 1 or last_seq_num and ack_number == last_seq_num + 1:
-                        # ACK benar!
-                        print(f'[!] [Client x] [Num = {seq_base}] [ACK] ACK received, new sequence base = {seq_base + 1}')
+                        last_ack_time = time.time()
+                        print(f'[!] [Client {client_addr[0]}:{client_addr[1]}] [Num = {seq_base}] [ACK] ACK received, new sequence base = {seq_base + 1}')
+                        
                         # Delete dari chunk ...
-                        del chunk[seq_base]
-                        # Lanjut!
-                        seq_base += 1
-                        seq_max += 1
-                        # Send sequence number terakhir ...
-                        read_chunk = None
-                        if seq_num in chunk:
-                            read_chunk = chunk[seq_num]
-                        else:
-                            read_chunk = in_file.read(Segment.MAX_PAYLOAD_SIZE)
-                        if read_chunk:
-                            print(f'[!] [Client x] [Num = {seq_num}] Sending segment to client ...')
-                            chunk[seq_num] = read_chunk
-                            file_segment = Segment()
-                            file_segment.set_header({
-                                "seq_nb": seq_num
-                            })
-                            file_segment.set_payload(chunk[seq_num])
-                            self.server_connection.send_data(file_segment, client_addr)
-
-                            seq_num += 1
-                        else:
-                            if not last_seq_num:
-                                last_seq_num = seq_num - 1
-                            if ack_number == last_seq_num + 1:
-                                # Sudah tidak ada lagi yang bisa dibaca.
-                                print(f'[!] [Client x] [CLS] File transfer completed. Initiating closing connection ...')
-                                return
-                            else:
-                                # Masih ada ACK lain yang harus diterima
-                                continue 
-                    else:
-                        continue
+                        for key in list(chunk):
+                            if key < seq_base:
+                                del chunk[key]
 
                 except (socket.timeout, ValueError):
                     # ACK tidak ditemukan. Ulangi pengiriman ,,,
-                    print(f'[!] [Client x] [Num = {seq_base}] [Timeout] ACK response timeout/invalid ACK number, resending segment ...')
+                    print(f'[!] [Client {client_addr[0]}:{client_addr[1]}] [Num = {seq_base}] [Timeout] ACK response timeout/invalid ACK number, resending segment ...')
                     seq_num = seq_base
-                    while (seq_num <= seq_max):
-                        read_chunk = None
-                        if seq_num in chunk:
-                            read_chunk = chunk[seq_num]
+                    # while (seq_num <= seq_max):
+                    #     read_chunk = None
+                    #     if seq_num in chunk:
+                    #         read_chunk = chunk[seq_num]
+                    #     else:
+                    #         read_chunk = in_file.read(Segment.MAX_PAYLOAD_SIZE)
+                    #     if read_chunk:
+                    #         chunk[seq_num] = read_chunk
+                    #         file_segment = Segment()
+                    #         file_segment.set_header({
+                    #             "seq_nb": seq_num
+                    #         })
+                    #         file_segment.set_payload(chunk[seq_num])
+                    #         self.server_connection.send_data(file_segment, client_addr)
+                    #         print(f'[!] [Client x] [Num = {seq_num}] Sending segment to client ...')
+                    #         seq_num += 1
+                    #     else:
+                    #         if not last_seq_num:
+                    #             last_seq_num = seq_num - 1
+                    #         break
+                    # continue
+
+                # Send sequence number terakhir ...
+                if seq_num <= seq_max:    
+                    read_chunk = None
+                    if seq_num in chunk:
+                        read_chunk = chunk[seq_num]
+                    else:
+                        read_chunk = in_file.read(Segment.MAX_PAYLOAD_SIZE)
+                    
+                    if read_chunk:
+                        print(f'[!] [Client {client_addr[0]}:{client_addr[1]}] [Num = {seq_num}] Sending segment to client ...')
+                        chunk[seq_num] = read_chunk
+                        file_segment = Segment()
+                        file_segment.set_header({
+                            "seq_nb": seq_num
+                        })
+                        file_segment.set_payload(chunk[seq_num])
+                        self.server_connection.send_data(file_segment, client_addr)
+                        seq_num += 1
+                    else:
+                        if not last_seq_num:
+                            last_seq_num = seq_num - 1
+                        
+                        if ack_number == last_seq_num + 1:
+                            # Sudah tidak ada lagi yang bisa dibaca.
+                            print(f'[!] [Client {client_addr[0]}:{client_addr[1]}] [CLS] File transfer completed. Initiating closing connection ...')
+                            return
                         else:
-                            read_chunk = in_file.read(Segment.MAX_PAYLOAD_SIZE)
-                        if read_chunk:
-                            chunk[seq_num] = read_chunk
-                            file_segment = Segment()
-                            file_segment.set_header({
-                                "seq_nb": seq_num
-                            })
-                            file_segment.set_payload(chunk[seq_num])
-                            self.server_connection.send_data(file_segment, client_addr)
-                            print(f'[!] [Client x] [Num = {seq_num}] Sending segment to client ...')
-                            seq_num += 1
-                        else:
-                            if not last_seq_num:
-                                last_seq_num = seq_num - 1
-                            break
-                    continue
+                            # Masih ada ACK lain yang harus diterima
+                            continue 
 
     def three_way_handshake(self, client_addr: tuple[str, int]) -> bool:
         # Three way handshake, server-side, 1 client
@@ -234,7 +238,6 @@ class Server:
         print(f"[({client_addr[0]}:{client_addr[1]}) Handshake] Start Session Closing")
         self.server_connection.set_listen_timeout(15)
         while True:
-            # FIN
             # Send FIN
             fin_sgmt = Segment()
             fin_sgmt.set_header({"seq_nb": 100})
@@ -248,11 +251,13 @@ class Server:
                 print(f"[({client_addr[0]}:{client_addr[1]}) Handshake] Waiting For Segment ACK")
                 ack_segment = self.server_connection.listen_single_segment()
                 print(f"[({client_addr[0]}:{client_addr[1]}) Handshake] ACK segment received")
+                break
             except socket.timeout:
                 print(f"[({client_addr[0]}:{client_addr[1]}) Handshake] ACK Timeout")
                 print(f"[({client_addr[0]}:{client_addr[1]}) Handshake] Failed")
-                return False
-
+                continue
+        
+        while True:
             # Wait For FIN
             fin_segment = None
             try:
@@ -262,7 +267,7 @@ class Server:
             except socket.timeout:
                 print(f"[({client_addr[0]}:{client_addr[1]}) Handshake] FIN Timeout")
                 print(f"[({client_addr[0]}:{client_addr[1]}) Handshake] Failed")
-                return False
+                continue
 
             # ACK
             # Send ACK
@@ -271,7 +276,9 @@ class Server:
             self.server_connection.send_data(ack_sgmt, client_addr)
             print(f"[({client_addr[0]}:{client_addr[1]}) Handshake] ACK Segment Sent")
             print(f"[({client_addr[0]}:{client_addr[1]}) Handshake] Connection Closed")
-            return True
+            break
+        
+        return True
 
 if __name__ == '__main__':
     if (len(sys.argv) != 3):
