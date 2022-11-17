@@ -124,11 +124,15 @@ class Client:
                     # Check segment
                     if file_segment.get_flag().is_null_flag() and file_segment.get_header()["seq_nb"] == ack_nb and file_segment.valid_checksum():
                         out_file.write(file_segment.get_payload())
-                        print(f"Written {len(file_segment.get_payload())} bytes")
+                        print(f"[!] [File Transfer] Written {len(file_segment.get_payload())} bytes")
                         print(f"[!] [File Transfer] Received segment {ack_nb}")
                         last_recv_nb = ack_nb
                         ack_nb += 1
+                    else:
+                        raise ValueError
                 
+                except ValueError:
+                    print(f"[!] [File Transfer] Received corrupted data when expecting for segment {ack_nb}")
                 except:
                     pass
 
@@ -181,8 +185,8 @@ class Client:
                 else:
                     continue        # Restart sending ACK
             except socket.timeout:
-                print("[!] [Four-Way Handshake] Timeout on no ACK received, retrying ...")
-                continue
+                print("[!] [Four-Way Handshake] Timeout on no ACK received, closing client ...")
+                break
 
 if __name__ == '__main__':
     if (len(sys.argv) != 4):
