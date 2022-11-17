@@ -53,22 +53,22 @@
 <table>
     <tr>
         <td align = "center">Segment</td>
-        <td align = "center"></td>
+        <td align = "center">13520071</td>
     </tr>
     <tr>
         <td align = "center">Connection</td>
-        <td align = "center"></td>
+        <td align = "center">13520119</td>
     </tr>
     <tr>
         <td align = "center">Three Way Handshake</td>
-        <td align = "center"></td>
+        <td align = "center">13520131</td>
     </tr>
     <tr>
         <td align = "center">File Transfer</td>
-        <td align = "center"></td>
+        <td align = "center">13520071, 13520119, 13520131</td>
     </tr>
     <tr>
         <td align = "center">Four Way Handshake</td>
-        <td align = "center"></td>
+        <td align = "center">13520071, 13520119, 13520131</td>
     </tr>
 </table>
