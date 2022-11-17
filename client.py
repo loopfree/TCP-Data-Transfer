@@ -38,6 +38,8 @@ class Client:
 
         self.client_connection.set_listen_timeout(WAIT_TIME_LIMIT)
 
+        req_header = None
+        
         while True:
             # Check if timeout limit reached
             if time.time() - start_handshake_time > HANDSHAKE_TIME_LIMIT:
@@ -59,6 +61,9 @@ class Client:
             req_header = req_segment.get_header()
             print("[!] [Three-Way Handshake] SYN request received")
 
+            break
+
+        while True:
             # Kirim SYN-ACK
             print(f"[!] [Three-Way Handshake] Sending broadcast SYN-ACK reply to port {self.broadcast_port}")
             reply_segment = Segment()
@@ -137,8 +142,16 @@ class Client:
         return
 
     def four_way_handshake(self):
+        self.client_connection.set_listen_timeout(1)
+        MAX_FWH_TIME = 10
+        fwh_start = time.time()
+
         print("[!] [Four-Way Handshake] Handshake starting ...")
         while True:
+            if time.time() - fwh_start > MAX_FWH_TIME:
+                print("[!] [Four-Way Handshake] Timeout limit for four way handshake reached. Closing connection ...")
+                break
+
             # Send ACK
             ack_sgmt = Segment()
             ack_sgmt.set_flag([SegmentFlag.ACK_FLAG])
@@ -159,8 +172,8 @@ class Client:
                 else:
                     continue        # Restart sending ACK
             except socket.timeout:
-                print("[!] [Four-Way Handshake] Timeout on no ACK received, closing connection automatically ...")
-                break
+                print("[!] [Four-Way Handshake] Timeout on no ACK received, retrying ...")
+                continue
 
 if __name__ == '__main__':
     if (len(sys.argv) != 4):

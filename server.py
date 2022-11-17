@@ -36,14 +36,14 @@ class Server:
                     print(f"[!] Client (localhost:{addr}) discovered")
 
                     while True:
-                        accept_more_client = input("[?] Listen for more client? (y/n)")
+                        accept_more_client = input("[?] Listen for more client? (y/n) ")
                         if accept_more_client.lower() == 'n':
                             is_listening = False
                             break
                         if accept_more_client.lower() == 'y':
                             break
                         
-                        print("[!] Invalid Input, Try Again")
+                        print("[!] Invalid input, try again")
             except socket.timeout:
                 print(f"[!] Timeout, stopped listening for clients")
                 break
@@ -126,27 +126,6 @@ class Server:
                     # ACK tidak ditemukan. Ulangi pengiriman ,,,
                     print(f'[!] [Client {client_addr[0]}:{client_addr[1]}] [Num = {seq_base}] [Timeout] ACK response timeout/invalid ACK number, resending segment ...')
                     seq_num = seq_base
-                    # while (seq_num <= seq_max):
-                    #     read_chunk = None
-                    #     if seq_num in chunk:
-                    #         read_chunk = chunk[seq_num]
-                    #     else:
-                    #         read_chunk = in_file.read(Segment.MAX_PAYLOAD_SIZE)
-                    #     if read_chunk:
-                    #         chunk[seq_num] = read_chunk
-                    #         file_segment = Segment()
-                    #         file_segment.set_header({
-                    #             "seq_nb": seq_num
-                    #         })
-                    #         file_segment.set_payload(chunk[seq_num])
-                    #         self.server_connection.send_data(file_segment, client_addr)
-                    #         print(f'[!] [Client x] [Num = {seq_num}] Sending segment to client ...')
-                    #         seq_num += 1
-                    #     else:
-                    #         if not last_seq_num:
-                    #             last_seq_num = seq_num - 1
-                    #         break
-                    # continue
 
                 # Send sequence number terakhir ...
                 if seq_num <= seq_max:    
@@ -186,8 +165,8 @@ class Server:
             (2) When listening for SYN-ACK segments, maximum timeout is 1 second. If timeout happens, restart handshake.
             (3) If three-way handshake takes longer than 15 seconds, mark process as failed.
         '''
-        WAIT_FOR_SYN_ACK = 1       # 1 seconds
-        HANDSHAKE_TIME_LIMIT = 15  # 15 seconds
+        WAIT_FOR_SYN_ACK = 1        # 1 seconds
+        HANDSHAKE_TIME_LIMIT = 120  # 120 seconds
         start_handshake_time = time.time()
 
         self.server_connection.set_listen_timeout(WAIT_FOR_SYN_ACK)
@@ -234,49 +213,62 @@ class Server:
                 continue
 
     def four_way_handshake(self, client_addr: tuple[str, int]):
-        # Tearing The Session
-        print(f"[Four-Way Handshake] Start Session Closing")
-        self.server_connection.set_listen_timeout(15)
+        # Tearing the session
+        print(f"[!] [Four-Way Handshake] Start session closing")
+
+        self.server_connection.set_listen_timeout(1)
+        MAX_FWH_TIME = 10
+        fwh_start = time.time()
+
+
         while True:
+            if time.time() - fwh_start > MAX_FWH_TIME:
+                print("[!] [Four-Way Handshake] Timeout limit for four way handshake reached. Closing connection ...")
+                break
+
             # Send FIN
             fin_sgmt = Segment()
             fin_sgmt.set_header({"seq_nb": 100})
             fin_sgmt.set_flag([SegmentFlag.FIN_FLAG])
             self.server_connection.send_data(fin_sgmt, client_addr)
-            print(f"[Four-Way Handshake] FIN Segment Sent")
+            print(f"[!] [Four-Way Handshake] FIN segment sent")
 
             # Wait For ACK
             try:
-                print(f"[Four-Way Handshake] Waiting For Segment ACK")
+                print(f"[!] [Four-Way Handshake] Waiting for segment ACK")
                 ack_segment = self.server_connection.listen_single_segment()
                 if not ack_segment.get_flag().is_ack_flag():
                     continue
-                print(f"[Four-Way Handshake] ACK segment received")
+                print(f"[!] [Four-Way Handshake] ACK segment received")
                 break
             except socket.timeout:
-                print(f"[Four-Way Handshake] ACK Timeout")
-                print(f"[Four-Way Handshake] Failed")
+                print(f"[!] [Four-Way Handshake] ACK timeout")
+                print(f"[!] [Four-Way Handshake] Failed")
                 continue
         
         while True:
+            if time.time() - fwh_start > MAX_FWH_TIME:
+                print("[!] [Four-Way Handshake] Timeout limit for four way handshake reached. Closing connection ...")
+                break
+            
             # Wait For FIN
             try:
-                print(f"[Four-Way Handshake] Waiting For Segment FIN")
+                print(f"[!] [Four-Way Handshake] Waiting for FIN segment")
                 fin_segment = self.server_connection.listen_single_segment()
                 if not fin_segment.get_flag().is_fin_flag():
                     continue
-                print(f"[Four-Way Handshake] FIN segment received")
+                print(f"[!] [Four-Way Handshake] FIN segment received")
             except socket.timeout:
-                print(f"[Four-Way Handshake] FIN Timeout")
-                print(f"[Four-Way Handshake] Failed")
+                print(f"[!] [Four-Way Handshake] FIN timeout")
+                print(f"[!] [Four-Way Handshake] Failed")
                 continue
 
             # Send ACK
             ack_sgmt = Segment()
             ack_sgmt.set_flag([SegmentFlag.ACK_FLAG])
             self.server_connection.send_data(ack_sgmt, client_addr)
-            print(f"[Four-Way Handshake] ACK Segment Sent")
-            print(f"[Four-Way Handshake] Connection Closed")
+            print(f"[!] [Four-Way Handshake] ACK segment sent")
+            print(f"[!] [Four-Way Handshake] Connection closed")
             break
 
 if __name__ == '__main__':
