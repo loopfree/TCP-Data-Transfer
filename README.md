@@ -16,7 +16,7 @@
     ```
 3. Jalankan <i>Client</i>
     ```
-    python3 client.py [PORT] [FILE]
+    python3 client.py [CLIENT PORT] [SERVER PORT] [FILE]
     ```
 <strong><em>NOTE:</em></strong> Pastikan PORT-nya berbeda antara satu dengan yang lainnya
 
