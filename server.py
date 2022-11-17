@@ -14,6 +14,8 @@ class Server:
         self.clients = []
         self.server_connection = Connection("localhost", self.broadcast_port)
 
+        self.seq_num = Segment.INIT_SEQ_NB
+
         # Output required message
         print(f"[!] Server started at localhost:{self.broadcast_port}")
         print(f"[!] Source file | {self.path_file_input} | {os.stat(self.path_file_input).st_size} bytes")
@@ -68,9 +70,8 @@ class Server:
         WINDOW_SIZE = 5
         ACK_TIMEOUT = 1                         # Maximum time to wait for acknowledgments
         FILE_TRANSFER_TIMEOUT = 30              # If file transfer commences above this, it will result as failed
-        seq_base = Segment.INIT_SEQ_NB          # Start of window
+        seq_base = self.seq_num                 # Start of window
         seq_max = WINDOW_SIZE + seq_base - 1    # End of window
-        seq_num = seq_base                      # Sequence number to send
         last_seq_num = None                     # Biggest seq num that can be sent
         last_ack_time = time.time()             # Last ack timestamp
         chunk = {}                              # File chunks
@@ -80,21 +81,21 @@ class Server:
 
         with open(self.path_file_input, "rb") as in_file:
             # Kirim segmen-segmen awal!
-            while (seq_num <= seq_max):       
+            while (self.seq_num <= seq_max):       
                 read_chunk = in_file.read(Segment.MAX_PAYLOAD_SIZE)
                 if read_chunk:
-                    chunk[seq_num] = read_chunk
+                    chunk[self.seq_num] = read_chunk
                     file_segment = Segment()
                     file_segment.set_header({
-                        "seq_nb": seq_num
+                        "seq_nb": self.seq_num
                     })
-                    file_segment.set_payload(chunk[seq_num])
+                    file_segment.set_payload(chunk[self.seq_num])
                     self.server_connection.send_data(file_segment, client_addr)
-                    print(f'[!] [Client {client_addr[0]}:{client_addr[1]}] [Num = {seq_num}] Sending segment to client ...')
-                    seq_num += 1
+                    print(f'[!] [Client {client_addr[0]}:{client_addr[1]}] [Num = {self.seq_num}] Sending segment to client ...')
+                    self.seq_num += 1
                 else:
                     if not last_seq_num:
-                        last_seq_num = seq_num - 1
+                        last_seq_num = self.seq_num - 1
                     break
 
             while True:
@@ -114,6 +115,7 @@ class Server:
                     if ack_number >= seq_base + 1:
                         seq_max = (seq_max - seq_base) + ack_number
                         seq_base = ack_number
+                        self.seq_num = seq_base
                         last_ack_time = time.time()
                         print(f'[!] [Client {client_addr[0]}:{client_addr[1]}] [Num = {seq_base}] [ACK] ACK received, new sequence base = {seq_base + 1}')
                         
@@ -125,29 +127,29 @@ class Server:
                 except (socket.timeout, ValueError):
                     # ACK tidak ditemukan. Ulangi pengiriman ,,,
                     print(f'[!] [Client {client_addr[0]}:{client_addr[1]}] [Num = {seq_base}] [Timeout] ACK response timeout/invalid ACK number, resending segment ...')
-                    seq_num = seq_base
+                    self.seq_num = seq_base
 
                 # Send sequence number terakhir ...
-                if seq_num <= seq_max:    
+                if self.seq_num <= seq_max:    
                     read_chunk = None
-                    if seq_num in chunk:
-                        read_chunk = chunk[seq_num]
+                    if self.seq_num in chunk:
+                        read_chunk = chunk[self.seq_num]
                     else:
                         read_chunk = in_file.read(Segment.MAX_PAYLOAD_SIZE)
                     
                     if read_chunk:
-                        print(f'[!] [Client {client_addr[0]}:{client_addr[1]}] [Num = {seq_num}] Sending segment to client ...')
-                        chunk[seq_num] = read_chunk
+                        print(f'[!] [Client {client_addr[0]}:{client_addr[1]}] [Num = {self.seq_num}] Sending segment to client ...')
+                        chunk[self.seq_num] = read_chunk
                         file_segment = Segment()
                         file_segment.set_header({
-                            "seq_nb": seq_num
+                            "seq_nb": self.seq_num
                         })
-                        file_segment.set_payload(chunk[seq_num])
+                        file_segment.set_payload(chunk[self.seq_num])
                         self.server_connection.send_data(file_segment, client_addr)
-                        seq_num += 1
+                        self.seq_num += 1
                     else:
                         if not last_seq_num:
-                            last_seq_num = seq_num - 1
+                            last_seq_num = self.seq_num - 1
                         
                         if ack_number == last_seq_num + 1:
                             # Sudah tidak ada lagi yang bisa dibaca.
@@ -166,7 +168,7 @@ class Server:
             (3) If three-way handshake takes longer than 15 seconds, mark process as failed.
         '''
         WAIT_FOR_SYN_ACK = 1        # 1 seconds
-        HANDSHAKE_TIME_LIMIT = 120  # 120 seconds
+        HANDSHAKE_TIME_LIMIT = 15   # 15 seconds
         start_handshake_time = time.time()
 
         self.server_connection.set_listen_timeout(WAIT_FOR_SYN_ACK)
@@ -181,10 +183,10 @@ class Server:
 
             # Send SYN segment
             syn_sgmt = Segment()
-            syn_sgmt.set_header({"seq_nb": 100})
+            syn_sgmt.set_header({"seq_nb": self.seq_num})
             syn_sgmt.set_flag([SegmentFlag.SYN_FLAG])
             self.server_connection.send_data(syn_sgmt, client_addr)
-            print(f"[!] [Three-Way Handshake] SYN segment sent to {client_addr[0]}:{client_addr[1]}!")
+            print(f"[!] [Three-Way Handshake] SYN segment (seq_nb: {self.seq_num}) sent to {client_addr[0]}:{client_addr[1]}!")
 
             # Wait for SYN-ACK
             try:
@@ -196,11 +198,12 @@ class Server:
 
             # Receive SYN-ACK
             # Then Send ACK
-            if syn_ack_sgmt.get_flag().is_syn_flag() and syn_ack_sgmt.get_flag().is_ack_flag():
+            if syn_ack_sgmt.get_flag().is_syn_flag() and syn_ack_sgmt.get_flag().is_ack_flag() and syn_ack_sgmt.get_header()['ack_nb'] == self.seq_num + 1:
                 print(f"[!] [Three-Way Handshake] Received SYN-ACK segment from {client_addr[0]}:{client_addr[1]}!")
 
+                self.seq_num = syn_ack_sgmt.get_header()['ack_nb']
                 ack_sgmt = Segment()
-                ack_sgmt.set_header({'ack_nb': syn_ack_sgmt.get_header()['seq_nb'] + 1})
+                ack_sgmt.set_header({'ack_nb': syn_ack_sgmt.get_header()['seq_nb'] + 1, 'seq_nb': self.seq_num})
                 ack_sgmt.set_flag([SegmentFlag.ACK_FLAG])
 
                 self.server_connection.send_data(ack_sgmt, client_addr)
@@ -209,7 +212,7 @@ class Server:
                 
                 return True
             else:
-                print(f"[!] [Three-Way Handshake] Wrong segment received. Expected SYN-ACK from {client_addr[0]}:{client_addr[1]}, retrying ... ")
+                print(f"[!] [Three-Way Handshake] Wrong segment received. Expected SYN-ACK from {client_addr[0]}:{client_addr[1]} with ACK number {self.seq_num + 1}, retrying ... ")
                 continue
 
     def four_way_handshake(self, client_addr: tuple[str, int]):
@@ -217,9 +220,8 @@ class Server:
         print(f"[!] [Four-Way Handshake] Start session closing")
 
         self.server_connection.set_listen_timeout(1)
-        MAX_FWH_TIME = 10
+        MAX_FWH_TIME = 5
         fwh_start = time.time()
-
 
         while True:
             if time.time() - fwh_start > MAX_FWH_TIME:
@@ -228,7 +230,7 @@ class Server:
 
             # Send FIN
             fin_sgmt = Segment()
-            fin_sgmt.set_header({"seq_nb": 100})
+            fin_sgmt.set_header({"seq_nb": self.seq_num})
             fin_sgmt.set_flag([SegmentFlag.FIN_FLAG])
             self.server_connection.send_data(fin_sgmt, client_addr)
             print(f"[!] [Four-Way Handshake] FIN segment sent")
@@ -237,9 +239,10 @@ class Server:
             try:
                 print(f"[!] [Four-Way Handshake] Waiting for segment ACK")
                 ack_segment = self.server_connection.listen_single_segment()
-                if not ack_segment.get_flag().is_ack_flag():
+                if not ack_segment.get_flag().is_ack_flag() or ack_segment.get_header()['ack_nb'] != self.seq_num + 1:
                     continue
                 print(f"[!] [Four-Way Handshake] ACK segment received")
+                self.seq_num = ack_segment.get_header()['ack_nb']
                 break
             except socket.timeout:
                 print(f"[!] [Four-Way Handshake] ACK timeout")
@@ -250,7 +253,7 @@ class Server:
             if time.time() - fwh_start > MAX_FWH_TIME:
                 print("[!] [Four-Way Handshake] Timeout limit for four way handshake reached. Closing connection ...")
                 break
-            
+
             # Wait For FIN
             try:
                 print(f"[!] [Four-Way Handshake] Waiting for FIN segment")
@@ -266,6 +269,7 @@ class Server:
             # Send ACK
             ack_sgmt = Segment()
             ack_sgmt.set_flag([SegmentFlag.ACK_FLAG])
+            ack_sgmt.set_header({"seq_nb": self.seq_num})
             self.server_connection.send_data(ack_sgmt, client_addr)
             print(f"[!] [Four-Way Handshake] ACK segment sent")
             print(f"[!] [Four-Way Handshake] Connection closed")
